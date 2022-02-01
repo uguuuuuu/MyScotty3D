@@ -65,6 +65,37 @@ Halfedge_Mesh::HalfedgeRef get_last_halfedge(Halfedge_Mesh::HalfedgeRef h) {
 
     return hh;
 }
+Halfedge_Mesh::VertexRef move(Halfedge_Mesh::VertexRef dst, Halfedge_Mesh::VertexRef src) {
+    
+    dst->halfedge() = src->halfedge();
+    for(auto h : get_outgoing_halfedges(src)) h->vertex() = dst;
+    return dst;
+}
+Halfedge_Mesh::VertexRef merge(Halfedge_Mesh::VertexRef v0, Halfedge_Mesh::VertexRef v1,
+                               Halfedge_Mesh& m) {
+    auto v = m.new_vertex();
+
+    for(auto h : get_outgoing_halfedges(v0)) {
+        if(h->twin()->vertex() == v1) {
+            m.erase(h);
+        } else {
+            h->vertex() = v;
+            v->halfedge() = h;
+        }
+    }
+    for(auto h : get_outgoing_halfedges(v1)) {
+        if(h->twin()->vertex() == v0) {
+            m.erase(h);
+            m.erase(h->edge());
+        } else {
+            h->vertex() = v;
+        }
+    }
+    m.erase(v0);
+    m.erase(v1);
+
+    return v;
+}
 bool on_boundary(Halfedge_Mesh::VertexRef v) {
 
     auto outgoing_halfedges = get_outgoing_halfedges(v);
