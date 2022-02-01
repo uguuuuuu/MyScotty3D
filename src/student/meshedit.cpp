@@ -2,9 +2,13 @@
 #include <queue>
 #include <set>
 #include <unordered_map>
+#include <algorithm>
+#include <numeric>
+#include <functional>
 
 #include "../geometry/halfedge.h"
 #include "debug.h"
+#include "../lib/log.h"
 
 /* Note on local operation return types:
 
@@ -30,14 +34,121 @@
     Note that the stubs below all reject their duties by returning the null optional.
 */
 
+std::vector<Halfedge_Mesh::VertexRef> get_neighbors(Halfedge_Mesh::VertexRef v) {
+
+    std::vector<Halfedge_Mesh::VertexRef> neighbors;
+    auto h = v->halfedge();
+    do {
+        neighbors.push_back(h->twin()->vertex());
+        h = h->twin()->next();
+    } while(h != v->halfedge());
+
+    return neighbors;
+}
+std::vector<Halfedge_Mesh::HalfedgeRef> get_outgoing_halfedges(Halfedge_Mesh::VertexRef v, std::function<bool(Halfedge_Mesh::HalfedgeRef)> pred =
+                                    [](Halfedge_Mesh::HalfedgeRef) { return true; }) {
+    std::vector<Halfedge_Mesh::HalfedgeRef> outgoing_halfedges;
+    auto h = v->halfedge();
+    do {
+        if(pred(h)) outgoing_halfedges.push_back(h);
+        h = h->twin()->next();
+    } while(h != v->halfedge());
+
+    return outgoing_halfedges;
+}
+Halfedge_Mesh::HalfedgeRef get_last_halfedge(Halfedge_Mesh::HalfedgeRef h) {
+
+    auto hh = h;
+    do {
+        hh = hh->next();
+    } while(hh->next() != h);
+
+    return hh;
+}
+bool on_boundary(Halfedge_Mesh::VertexRef v) {
+
+    auto outgoing_halfedges = get_outgoing_halfedges(v);
+    for(auto h : outgoing_halfedges) {
+        if(h->face()->is_boundary() || h->twin()->face()->is_boundary()) return true;
+    }
+    return false;
+}
+bool inline on_boundary(Halfedge_Mesh::EdgeRef e) {
+    auto h0 = e->halfedge();
+    auto h1 = h0->twin();
+    return h0->face()->is_boundary() || h1->face()->is_boundary();
+}
+unsigned int inline num_incident_edges(Halfedge_Mesh::VertexRef v) {
+
+    return on_boundary(v) ? v->degree() + 1 : v->degree();
+}
+size_t num_edges(Halfedge_Mesh::FaceRef f) {
+
+    auto h = f->halfedge();
+    size_t counter = 0;
+    do {
+        counter++;
+        h = h->next();
+    } while(h != f->halfedge());
+    return counter;
+}
+std::vector<Halfedge_Mesh::HalfedgeRef> get_boundary_halfedges(Halfedge_Mesh::HalfedgeRef h) {
+    std::vector<Halfedge_Mesh::HalfedgeRef> bdry_halfedges;
+    auto hh = h;
+    do {
+        bdry_halfedges.push_back(hh);
+        hh = hh->next();
+    } while(hh != h);
+
+    return bdry_halfedges;
+}
+
 /*
     This method should replace the given vertex and all its neighboring
     edges and faces with a single face, returning the new face.
  */
 std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_vertex(Halfedge_Mesh::VertexRef v) {
 
-    (void)v;
-    return std::nullopt;
+    // 0. sanity check
+    // 1. create new face
+    // 2. reconfigure incident vertices & halfedges & boundary halfedges
+    // 3. configure new face
+    // 4. delete inside vertex, edges, faces, and halfedges
+
+    if(on_boundary(v)) return std::nullopt;
+    std::vector<VertexRef> neighbors = get_neighbors(v);
+    for(auto ngbr : neighbors) {
+        if(num_incident_edges(ngbr) < 3) return std::nullopt;
+    }
+
+    auto face = new_face();
+
+    std::vector<HalfedgeRef> outgoing_halfedges = get_outgoing_halfedges(v);
+    for(auto h : outgoing_halfedges) {
+        auto h1 = h->next();
+        auto twin = h->twin();
+        twin->vertex()->halfedge() = h1;
+
+        auto h0 = twin->next();
+        while(h0->next() != twin) h0 = h0->next();
+        h0->next() = h1;
+    }
+    auto bdry_halfedges = get_boundary_halfedges(outgoing_halfedges[0]->next());
+    for(auto h : bdry_halfedges) {
+        h->face() = face;
+    }
+
+    face->halfedge() = bdry_halfedges[0];
+    
+    erase(v);
+    for(auto h : outgoing_halfedges) {
+        erase(h->edge());
+        erase(h->face());
+        erase(h->twin());
+        erase(h);
+    }
+
+    return face;
 }
 
 /*
@@ -46,18 +157,138 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_vertex(Halfedge_Mesh:
  */
 std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_edge(Halfedge_Mesh::EdgeRef e) {
 
-    (void)e;
-    return std::nullopt;
+    // 0. sanity check
+    // 1. new face
+    // 2. reconfigure boundary halfedges, incident vertices, & new face
+    // 3. delete edge, incident faces, and halfedges
+
+    if(on_boundary(e)) return std::nullopt;
+    auto h0 = e->halfedge();
+    auto h1 = h0->twin();
+    auto v0 = h0->vertex();
+    auto v1 = h1->vertex();
+    if(on_boundary(v0)) {
+        if(v0->degree() <= 1) return std::nullopt;
+    } else {
+        if(v0->degree() <= 2) return std::nullopt;
+    }
+    if(on_boundary(v1)) {
+        if(v1->degree() <= 1) return std::nullopt;
+    } else {
+        if(v1->degree() <= 2) return std::nullopt;
+    }
+
+    auto face = new_face();
+
+    auto h00 = h0->next();
+    auto h10 = h1->next();
+    auto h01 = h00;
+    while(h01->next() != h0) h01 = h01->next();
+    auto h11 = h10;
+    while(h11->next() != h1) h11 = h11->next();
+    h01->set_neighbors(h10, h01->twin(), h01->vertex(), h01->edge(), face);
+    h11->set_neighbors(h00, h11->twin(), h11->vertex(), h11->edge(), face);
+    for(auto h = h00; h != h11; h = h->next()) {
+        h->face() = face;
+    }
+    h0->vertex()->halfedge() = h10;
+    h1->vertex()->halfedge() = h00;
+    face->halfedge() = h00;
+
+    erase(e);
+    erase(h0->face());
+    erase(h1->face());
+    erase(h0);
+    erase(h1);
+
+    return face;
 }
 
+// return outgoing incident halfedge
+std::optional<Halfedge_Mesh::HalfedgeRef> collapse_half(Halfedge_Mesh::HalfedgeRef h, Halfedge_Mesh& m) {
+
+    auto h0 = h->next();
+    auto h1 = h0->next();
+    while(h1->next() != h) h1 = h1->next();
+    if(num_edges(h->face()) == 3) {
+        m.erase(h0);
+        m.erase(h1);
+        m.erase(h0->edge());
+        m.erase(h1->edge());
+        m.erase(h0->face());
+        {
+            auto hh = h0;
+            h0 = h1->twin();
+            h1 = hh->twin();
+        }
+        auto ee = m.new_edge();
+        ee->halfedge() = h0;
+        h0->set_neighbors(h0->next(), h1, h0->vertex(), ee, h0->face());
+        if(h1->next() == h->twin())
+            h1->set_neighbors(h1->next()->next(), h0, h1->vertex(), ee, h1->face());
+        else
+            h1->set_neighbors(h1->next(), h0, h1->vertex(), ee, h1->face());
+        h1->vertex()->halfedge() = h1;
+    } else {
+        h1->next() = h0;
+        h->face()->halfedge() = h0;
+    }
+
+    return h0;
+}
 /*
     This method should collapse the given edge and return an iterator to
     the new vertex created by the collapse.
 */
 std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Mesh::EdgeRef e) {
 
-    (void)e;
-    return std::nullopt;
+    auto v0 = e->halfedge()->vertex();
+    auto v1 = e->halfedge()->twin()->vertex();
+    bool on_bdry = on_boundary(e);
+    unsigned int num_triangles = 0;
+    std::vector<Halfedge_Mesh::VertexRef> common_neighbors;
+    auto h = e->halfedge()->face()->is_boundary() ? e->halfedge()->twin() : e->halfedge();
+    if(num_edges(h->face()) == 3) {
+        num_triangles++;
+        common_neighbors.push_back(h->next()->next()->vertex());
+    }
+    if(!on_bdry && num_edges(h->twin()->face()) == 3) {
+        num_triangles++;
+        common_neighbors.push_back(h->twin()->next()->next()->vertex());
+    }
+    if(num_triangles == 1) {
+        if(num_incident_edges(v0) + num_incident_edges(v1) - 3 < 2) return std::nullopt;
+        if(num_incident_edges(common_neighbors[0]) - 1 < 2) return std::nullopt;
+    }
+    if(num_triangles == 2) {
+        for(auto v : common_neighbors) {
+            if(num_incident_edges(v) - 1 < 2) return std::nullopt;
+        }
+    }
+    auto outgoing_halfedges0 = get_outgoing_halfedges(v0);
+    auto outgoing_halfedges1 = get_outgoing_halfedges(v1);
+
+    
+    auto h0 = collapse_half(h, *this);
+    if(!on_bdry) h0 = collapse_half(h->twin(), *this);
+
+    auto v = new_vertex();
+    v->halfedge() = *h0;
+
+    for(auto hh : outgoing_halfedges0) {
+        hh->vertex() = v;
+    }
+    for(auto hh : outgoing_halfedges1) {
+        hh->vertex() = v;
+    }
+
+    erase(v0);
+    erase(v1);
+    erase(e);
+    erase(h);
+    erase(h->twin());
+
+    return v;
 }
 
 /*
@@ -66,8 +297,55 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
 */
 std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_face(Halfedge_Mesh::FaceRef f) {
 
-    (void)f;
-    return std::nullopt;
+    // 0. sanity check
+    // 1. create new vertex
+    // 2. reconfigure incident faces
+    // 3. delete vertices, edges, face, & halfedges
+
+    auto bdry_halfedges = get_boundary_halfedges(f->halfedge());
+    for(auto h : bdry_halfedges) {
+        if(!on_boundary(h->edge()) && num_edges(h->twin()->face()) == 3) {
+            if(num_incident_edges(h->twin()->next()->next()->vertex()) < 3) return std::nullopt;
+        }
+    }
+    std::vector<HalfedgeRef> outgoing_halfedges;
+    outgoing_halfedges.reserve(
+        std::reduce(bdry_halfedges.begin(), bdry_halfedges.end(), (size_t)0,
+                    [](size_t a, HalfedgeRef h) { return a + num_incident_edges(h->vertex()); }) -
+        num_edges(f) * 2);
+    std::for_each(bdry_halfedges.begin(), bdry_halfedges.end(), [&](HalfedgeRef h) {
+        auto v = h->vertex();
+        auto halfedges = get_outgoing_halfedges(
+            v, [=](HalfedgeRef hh) { return hh->face() != f && hh->twin()->face() != f; });
+        auto size = outgoing_halfedges.size();
+        outgoing_halfedges.resize(size + halfedges.size());
+        std::move(halfedges.begin(), halfedges.end(), outgoing_halfedges.begin() + size);
+    });
+    if(outgoing_halfedges.size() < 2) return std::nullopt;
+
+    auto v = new_vertex();
+
+
+    for(auto h : bdry_halfedges) {
+        if(!on_boundary(h->edge())) {
+            auto h0 = *collapse_half(h->twin(), *this);
+            v->halfedge() = h0;
+        }
+    }
+    
+    for(auto h : outgoing_halfedges) {
+        h->vertex() = v;
+    }
+
+    for(auto h : bdry_halfedges) {
+        erase(h->vertex());
+        erase(h->edge());
+        erase(h->twin());
+        erase(h);
+    }
+    erase(f);
+
+    return v;
 }
 
 /*
