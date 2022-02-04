@@ -45,7 +45,8 @@ std::vector<Halfedge_Mesh::VertexRef> get_neighbors(Halfedge_Mesh::VertexRef v) 
 
     return neighbors;
 }
-std::vector<Halfedge_Mesh::HalfedgeRef> get_outgoing_halfedges(Halfedge_Mesh::VertexRef v, std::function<bool(Halfedge_Mesh::HalfedgeRef)> pred =
+std::vector<Halfedge_Mesh::HalfedgeRef> get_outgoing_halfedges(
+    Halfedge_Mesh::VertexRef v, std::function<bool(Halfedge_Mesh::HalfedgeRef)> pred =
                                     [](Halfedge_Mesh::HalfedgeRef) { return true; }) {
     std::vector<Halfedge_Mesh::HalfedgeRef> outgoing_halfedges;
     auto h = v->halfedge();
@@ -78,6 +79,7 @@ Halfedge_Mesh::VertexRef merge(Halfedge_Mesh::VertexRef v0, Halfedge_Mesh::Verte
     for(auto h : get_outgoing_halfedges(v0)) {
         if(h->twin()->vertex() == v1) {
             m.erase(h);
+            m.erase(h->edge());
         } else {
             h->vertex() = v;
             v->halfedge() = h;
@@ -89,12 +91,34 @@ Halfedge_Mesh::VertexRef merge(Halfedge_Mesh::VertexRef v0, Halfedge_Mesh::Verte
             m.erase(h->edge());
         } else {
             h->vertex() = v;
+            v->halfedge() = h;
         }
     }
     m.erase(v0);
     m.erase(v1);
 
     return v;
+}
+// @param h0: halfedge pointing outward common vert
+// @param h1: halfedge pointing toward common vert
+Halfedge_Mesh::EdgeRef merge(Halfedge_Mesh::HalfedgeRef h0, Halfedge_Mesh::HalfedgeRef h1,
+                             Halfedge_Mesh& m) {
+
+    auto v = merge(h0->twin()->vertex(), h1->vertex(), m);
+    auto e = m.new_edge();
+    m.erase(h0);
+    m.erase(h1);
+    m.erase(h0->edge());
+    m.erase(h1->edge());
+
+    h0 = h0->twin();
+    h1 = h1->twin();
+    e->halfedge() = h0;
+
+    h0->set_neighbors(h0->next(), h1, h0->vertex(), e, h0->face());
+    h1->set_neighbors(h1->next(), h0, h1->vertex(), e, h1->face());
+
+    return e;
 }
 bool on_boundary(Halfedge_Mesh::VertexRef v) {
 
@@ -236,7 +260,8 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_edge(Halfedge_Mesh::E
 }
 
 // return outgoing incident halfedge
-std::optional<Halfedge_Mesh::HalfedgeRef> collapse_half(Halfedge_Mesh::HalfedgeRef h, Halfedge_Mesh& m) {
+std::optional<Halfedge_Mesh::HalfedgeRef> collapse_half(Halfedge_Mesh::HalfedgeRef h,
+                                                        Halfedge_Mesh& m) {
 
     auto h0 = h->next();
     auto h1 = h0->next();
@@ -299,7 +324,6 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
     auto outgoing_halfedges0 = get_outgoing_halfedges(v0);
     auto outgoing_halfedges1 = get_outgoing_halfedges(v1);
 
-    
     auto h0 = collapse_half(h, *this);
     if(!on_bdry) h0 = collapse_half(h->twin(), *this);
 
@@ -322,7 +346,15 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
     return v;
 }
 
-/*
+void collapse_side(Halfedge_Mesh::HalfedgeRef h, Halfedge_Mesh& m) {
+    
+    if(num_edges(h->face()) == 3)
+        merge(get_last_halfedge(h), h->next(), m);
+    else
+        merge(h->vertex(), h->twin()->vertex(), m);
+
+}
+    /*
     This method should collapse the given face and return an iterator to
     the new vertex created by the collapse.
 */
