@@ -16,7 +16,7 @@ A good recipe for ensuring that all pointers are still valid after a local remes
 
 1.  Draw a picture of all the elements (vertices, edges, faces, halfedges) that will be needed from the original mesh, and all the elements that should appear in the modified mesh.
 2.  Allocate any new elements that are needed in the modified mesh, but do not appear in the original mesh.
-3.  For every element in the "modified" picture, set **all** of its pointers -- even if they didn't change. For instance, for each halfedge, make sure to set `next`, `twin`, `vertex`, `edge`, and `face` to the correct values in the new (modified) picture. For each vertex, make sure to set its `halfedge` pointer. Etc. A convenience method `Halfedge::set_neighbors()` has been created for this purpose.
+3.  For every element in the "modified" picture, set **all** of its pointers -- even if they didn't change. For instance, for each halfedge, make sure to set `next`, `twin`, `vertex`, `edge`, and `face` to the correct values in the new (modified) picture. For each vertex, make sure to set its `halfedge` pointer. Etc. A convenience method `Halfedge::set_neighbors()` has been created for this purpose. You may also want to update any necessary private variables associated with your elements.
 4.  Deallocate any elements that are no longer used in the modified mesh, which can be done by calling `Halfedge_Mesh::erase()`.
 
 The reason for setting all the pointers (and not just the ones that changed) is that it is very easy to miss a pointer, causing your code to crash.
@@ -27,51 +27,52 @@ To facilitate user interaction, as well as global mesh processing operations (de
 
 Also, remember that in any case, _the program should not crash!_ So for instance, you should never return a pointer to an element that was deleted.
 
-See the [User Guide](/Scotty3D/guide/model_mode) for demonstrations of each local operation.
+See the [User Guide](/Scotty3D/guide/model_mode) for demonstrations and more specifics of each local operation.
 
 *   `Halfedge_Mesh::flip_edge` - should return the edge that was flipped
 
 ![](flip_edge.svg)
 
-*   `Halfedge_Mesh::split_edge` - should return the inserted vertex
+*   `Halfedge_Mesh::split_edge` - [Note: this method is for triangle meshes only!] should return the inserted vertex
 
 ![](split_edge.svg)
-
-*   `Halfedge_Mesh::bisect_edge` - should bisect the edge and return the inserted vertex
-
-![](bisect_edge.svg)
 
 *   `Halfedge_Mesh::collapse_edge` - should return the new vertex, corresponding to the collapsed edge
 
 ![](collapse_edge.svg)
 
-*   `Halfedge_Mesh::collapse_face` - should return the new vertex, corresponding to the collapsed face
+*   `Halfedge_Mesh::bevel_face` / `Halfedge_Mesh::extrude_face` / `Halfedge_Mesh::inset_face` - should return the new, inset face
 
-![](collapse_face.svg)
-
-*   `Halfedge_Mesh::inset_vertex` - should return the newly inserted vertex
-
-![](inset_vertex.svg)
-
-*   `Halfedge_Mesh::erase_vertex` - should return the new face, corresponding to the faces originally containing the vertex
-
-![](erase_vertex.svg)
-
-*   `Halfedge_Mesh::erase_edge` - should return the new face, corresponding to the faces originally containing the edge
-
-![](erase_edge.svg)
-
-*   `Halfedge_Mesh::bevel_vertex` - should return the new face, corresponding to the beveled vertex
-
-![](bevel_vertex.svg)
+![](bevel_face.svg)
 
 *   `Halfedge_Mesh::bevel_edge` - should return the new face, corresponding to the beveled edge
 
 ![](bevel_edge.svg)
 
-*   `Halfedge_Mesh::bevel_face` / `Halfedge_Mesh::extrude_face` / `Halfedge_Mesh::inset_face` - should return the new, inset face
+*   `Halfedge_Mesh::bevel_vertex` - should return the new face, corresponding to the beveled vertex
 
-![](bevel_face.svg)
+![](bevel_vertex.svg)
+
+*   `Halfedge_Mesh::collapse_face` - should return the new vertex, corresponding to the collapsed face
+
+![](collapse_face.svg)
+
+*   `Halfedge_Mesh::erase_edge` - should return the new face, corresponding to the faces originally containing the edge
+
+![](erase_edge.svg)
+
+*   `Halfedge_Mesh::erase_vertex` - should return the new face, corresponding to the faces originally containing the vertex
+
+![](erase_vertex.svg)
+
+
+*   `Halfedge_Mesh::bisect_edge` - should bisect the edge and return the inserted vertex
+
+![](bisect_edge.svg)
+
+*   `Halfedge_Mesh::inset_vertex` - should return the newly inserted vertex
+
+![](inset_vertex.svg)
 
 *   `Halfedge_Mesh::extrude_vertex` - should return the new vertex
 

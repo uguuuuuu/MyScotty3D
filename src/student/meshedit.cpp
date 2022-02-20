@@ -10,6 +10,10 @@
 #include "debug.h"
 #include "../lib/log.h"
 
+/******************************************************************
+*********************** Local Operations **************************
+******************************************************************/
+
 /* Note on local operation return types:
 
     The local operations all return a std::optional<T> type. This is used so that your
@@ -464,39 +468,8 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_face(Halfedge_Me
     Insets a vertex into the given face, returning a pointer to the new center vertex
 */
 std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::inset_vertex(FaceRef f) {
-
-    auto v = new_vertex();
-    auto bdry_halfedges = get_boundary_halfedges(f->halfedge());
-    
-    for(size_t i = 0; i < bdry_halfedges.size(); i++) {
-        auto h = bdry_halfedges[i];
-        auto v0 = h->twin()->vertex();
-        auto e0 = new_edge();
-        auto f0 = new_face();
-        auto h0 = new_halfedge();
-        auto h1 = new_halfedge();
-        v->halfedge() = h1;
-        v0->halfedge() = h0;
-        e0->halfedge() = h0;
-        f0->halfedge() = h0;
-        h->set_neighbors(h0, h->twin(), h->vertex(), h->edge(), f0);
-        h0->set_neighbors(h0, h1, v0, e0, f0);
-        h1->set_neighbors(bdry_halfedges[(i + 1) % bdry_halfedges.size()], h0, v, e0, f0);
-    }
-    for(size_t i = 0; i < bdry_halfedges.size(); i++) {
-        auto h = bdry_halfedges[i];
-        auto h0 = h->next();
-        if(i == 0)
-            h0->next() = bdry_halfedges[bdry_halfedges.size() - 1]->next()->twin();
-        else
-            h0->next() = bdry_halfedges[i - 1]->next()->twin();
-        auto h1 = h0->twin();
-        h1->face() = bdry_halfedges[(i + 1) % bdry_halfedges.size()]->face();
-    }
-
-    erase(f);
-
-    return v;
+    (void)f;
+    return std::nullopt;
 }
 
 /*
@@ -598,48 +571,19 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::split_edge(Halfedge_Mesh:
     return v;
 }
 
-/* 
-    This method splits the given edge in half, but does not split the
-    adjacent faces. Returns an iterator to the new vertex which splits
-    the original edge.
+
+/*
+    This method should insets a vertex into the given face, returning a pointer to the new center vertex
 */
 std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::bisect_edge(EdgeRef e) {
 
-    auto h0 = e->halfedge();
-    auto h1 = h0->next();
-    auto h2 = get_last_halfedge(h0);
-    auto h3 = h0->twin();
-    auto h4 = h3->next();
-    auto h5 = get_last_halfedge(h3);
-    auto h6 = new_halfedge();
-    auto h7 = new_halfedge();
-    auto v = new_vertex();
-    auto v0 = h0->vertex();
-    auto v1 = h3->vertex();
-    auto e0 = e;
-    auto e1 = new_edge();
-    auto f0 = h0->face();
-    auto f1 = h3->face();
-
-    h0->set_neighbors(h1, h3, v, e0, f0);
-    h1->set_neighbors(h2, h1->twin(), v1, h1->edge(), f0);
-    h2->set_neighbors(h6, h2->twin(), h2->vertex(), h2->edge(), f0);
-    h3->set_neighbors(h7, h0, v1, e0, f1);
-    h4->set_neighbors(h5, h4->twin(), v0, h4->edge(), f1);
-    h5->set_neighbors(h3, h5->twin(), h5->vertex(), h5->edge(), f1);
-    h6->set_neighbors(h0, h7, v0, e1, f0);
-    h7->set_neighbors(h4, h6, v, e1, f1);
-    v->halfedge() = h0;
-    v0->halfedge() = h6;
-    v1->halfedge() = h3;
-    e0->halfedge() = h0;
-    e1->halfedge() = h6;
-    f0->halfedge() = h0;
-    f1->halfedge() = h3;
-
-    return v;
+    (void)e;
+    return std::nullopt;
 }
 
+/*
+    This method should inset a face into the given face, returning a pointer to the new face.
+*/
 std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::inset_face(Halfedge_Mesh::FaceRef f) {
 
     // hint: use bevel_face positions as a helper function here
@@ -648,7 +592,7 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::inset_face(Halfedge_Mesh::F
 }
 
 /*
-    Bevels a vertex and inserts a vertex into the new vertex, returning a pointer to that vertex
+    This method should bevel a vertex and inserts a vertex into the new vertex, returning a pointer to that vertex
 */
 std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::extrude_vertex(VertexRef v) {
     (void)v;
@@ -825,14 +769,6 @@ void Halfedge_Mesh::bevel_vertex_positions(const std::vector<Vec3>& start_positi
 }
 
 /*
-    Updates the position of v using the given start_position
-*/
-void Halfedge_Mesh::extrude_vertex_position(const Vec3& start_positions, Halfedge_Mesh::FaceRef face) {
-    (void)start_positions;
-    (void)face;
-}
-
-/*
     Compute new vertex positions for the vertices of the beveled edge.
 
     These vertices can be accessed via new_halfedges[i]->vertex()->pos for
@@ -907,6 +843,18 @@ void Halfedge_Mesh::bevel_face_positions(const std::vector<Vec3>& start_position
     (void)tangent_offset;
     (void)normal_offset;
 }
+
+/*
+    Updates the position of v using the given start_position
+*/
+void Halfedge_Mesh::extrude_vertex_position(const Vec3& start_positions, Halfedge_Mesh::FaceRef face) {
+    (void)start_positions;
+    (void)face;
+}
+
+/******************************************************************
+*********************** Global Operations *************************
+******************************************************************/
 
 /*
     Splits all non-triangular faces into triangles.

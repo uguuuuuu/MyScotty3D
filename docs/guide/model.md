@@ -51,15 +51,13 @@ is offset (in the normal direction) from the original element. It is important
 to note that a new element will be created upon click _even if no inset or
 offset is applied_. Therefore, if you're not careful you may end up with
 duplicate elements that are not immediately visible. (To check, you can drag one
-of the vertices mode.)
+of the vertices made.)
 
 There are three possible types of bevels:
 
 - Vertex Bevel: The selected vertex _v_ is replaced by a face _f_ whose
 vertices are connected to the edges originally incident on _v_. The new face is
 inset (i.e., shunken or expanded) by a user-controllable amount.
-
-- Vertex Extrude: The selected vertex _v_ is beveled by a flat amount (we use 1/3 the length of the edge from the original vertex _v_ to an adjacent vertex endpoint as the tangential offset), a new vertex _v'_ is inserted into the resulting face, and _v'_ is offset in its normal direction by a user-controllable amount.
 
 <video src="{{ site.baseurl }}/guide/model_mode/vertex_bevel.mp4" controls preload muted loop style="max-width: 100%; margin: 0 auto;"></video>
 
@@ -75,11 +73,14 @@ as a ring of faces around _g_, such that the vertices of _g_ connect to the
 original vertices of _f_. The new face is inset and offset by some
 user-controllable amount.
 
+<video src="{{ site.baseurl }}/guide/model_mode/face_bevel.mp4" controls preload muted loop style="max-width: 100%; margin: 0 auto;"></video>
+
+The following functions provide a bit more flexibility with how much to bevel the surface by: [Videos coming soon]
+
+- Vertex Extrude: The selected vertex _v_ is beveled by a flat amount (we use 1/3 the length of the edge from the original vertex _v_ to an adjacent vertex endpoint as the tangential offset), a new vertex _v'_ is inserted into the resulting face, and _v'_ is offset in its normal direction by a user-controllable amount.
+
 - Face Extrude: The selected face _f_ is replaced by a new face _g_ as in Face Bevel, and _g_ is offset only in the normal direction by some user-controllable amount.
 
-- Face Inset: The selected face _f_ is replaced by a new face _g_ as in Face Bevel, but its vertices are only offset in the tangent direction by a constant factor (we use 1/3 in the example).
-
-<video src="{{ site.baseurl }}/guide/model_mode/face_bevel.mp4" controls preload muted loop style="max-width: 100%; margin: 0 auto;"></video>
 
 ### Local Connectivity Editing
 
@@ -114,7 +115,6 @@ _v_.
 
 <video src="{{ site.baseurl }}/guide/model_mode/collapse_face.mp4" controls preload muted loop style="max-width: 100%; margin: 0 auto;"></video>
 
-- Vertex Inset: A new vertex _v_ is inset at the center of the selected face _f_, dividing _f_ into _n_ triangles (where _n_ is the degree of _f_).
 
 - Edge Flip: The selected edge _e_ is "rotated" around the face, in the
 sense that each endpoint moves to the next vertex (in counter-clockwise order)
@@ -128,7 +128,13 @@ to the two opposite vertices (or one in the case of a surface with boundary).
 
 <video src="{{ site.baseurl }}/guide/model_mode/edge_split.mp4" controls preload muted loop style="max-width: 100%; margin: 0 auto;"></video>
 
+The following operations will have videos soon.
+
 - Edge Bisect: The selected edge _e_ is split at its midpoint, and the new vertex _v_ at the split is returned. Note that the new vertex _v_ is not connected to the two opposite vertices as in Edge Split.
+
+- Face Inset: The selected face _f_ is replaced by a new face _g_ as in Face Bevel, but its vertices are only offset in the tangent direction by a constant factor (we use 1/3 in the example).
+
+- Vertex Inset: A new vertex _v_ is inset at the center of the selected face _f_, dividing _f_ into _n_ triangles (where _n_ is the degree of _f_).
 
 ### Global Mesh Processing
 

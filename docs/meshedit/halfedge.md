@@ -48,7 +48,7 @@ A nice consequence of the halfedge representation is that any valid halfedge mes
 The Scotty3D skeleton code already provides a fairly sophisticated implementation of the half edge data structure, in the `Halfedge_Mesh` class (see `geometry/halfedge.h` and `geometry/halfedge.cpp`). Although the detailed implementation may appear a bit complicated, the basic interface is not much different from the abstract description given above. For instance, suppose we have a face f and want to print out the positions of all its vertices. We would write a routine like this:
 
     void printVertexPositions(FaceRef f) {
-      HalfEdgeRef h = f->halfedge(); // get the first halfedge of the face
+      HalfedgeRef h = f->halfedge(); // get the first halfedge of the face
       do {
         VertexRef v = h->vertex();   // get the vertex of the current halfedge
         cout << v->pos << endl;      // print the vertex position
@@ -59,9 +59,9 @@ The Scotty3D skeleton code already provides a fairly sophisticated implementatio
 Notice that we refer to a face as a `FaceRef` rather than just a `Face`. You can think of a `Ref` as a kind of _pointer_. Note that members of an iterator are accessed with an arrow `->` rather than a dot `.`, just as with pointers. (A more in-depth explanation of some of these details can be found in the inline documentation.) Similarly, to print out the positions of all the neighbors of a given vertex we could write a routine like this:
 
     void printNeighborPositions(VertexRef v) {
-      HalfEdgeRef h = v->halfedge();    // get one of the outgoing halfedges of the vertex
+      HalfedgeRef h = v->halfedge();    // get one of the outgoing halfedges of the vertex
       do {
-        HalfEdgeRef h_twin = h->twin();   // get the vertex of the current halfedge
+        HalfedgeRef h_twin = h->twin();   // get the vertex of the current halfedge
         VertexRef vN = h_twin->vertex();  // vertex is 'source' of the half edge.
                                           // so h->vertex() is v,
                                           // whereas h_twin->vertex() is the neighbor vertex.

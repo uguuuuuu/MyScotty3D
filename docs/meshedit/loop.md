@@ -23,7 +23,10 @@ And the following picture illustrates the weighted average:
 
 ![Loop subdivision weights](loop_weights.png)
 
-In words, the new position of an old vertex is (1 - nu) times the old position + u times the sum of the positions of all of its neighbors. The new position for a newly created vertex v that splits Edge AB and is flanked by opposite vertices C and D across the two faces connected to AB in the original mesh will be 3/8 * (A + B) + 1/8 * (C + D). If we repeatedly apply these two steps, we will converge to a fairly smooth approximation of our original mesh.
+Note that the above image has **two separate formualas**.
+On the right side, the new position of an **old vertex** is (1 - nu) times the old position + u times the sum of the positions of all of its neighbors. \
+On the left side, the new position for a **newly created vertex v** that splits Edge AB and is flanked by opposite vertices C and D across the two faces connected to AB in the original mesh will be 3/8 * (A + B) + 1/8 * (C + D). \
+If we repeatedly apply these two steps, we will converge to a fairly smooth approximation of our original mesh.
 
 We will implement Loop subdivision as the `Halfedge_Mesh::loop_subdivide()` method. In contrast to linear and Catmull-Clark subdivision, Loop subdivision **must** be implemented using the local mesh operations described above (simply because it provides an alternative perspective on subdivision implementation, which can be useful in different scenarios). In particular, 4-1 subdivision can be achieved by applying the following strategy:
 
@@ -83,8 +86,8 @@ Given this setup, we strongly suggest that it will be easiest to implement subdi
 5.  Flip any new edge that connects an old and new vertex.
 6.  Finally, copy the new vertex positions (`Vertex::new_pos`) into the usual vertex positions (`Vertex::pos`).
 
-It may be useful to ensure `Halfedge_Mesh::split_edge()` will now return an iterator to the newly inserted vertex, and particularly that the halfedge of this vertex will point along the edge of the original mesh. This iterator is useful because it can be used to (i) flag the vertex returned by the split operation as a new vertex, and (ii) flag each outgoing edge as either being new or part of the original mesh. (In other words, Step 3 is a great time to set the members `is_new` for vertices and edges created by the split. It is also a good time to copy the `new_pos` field from the edge being split into the `new_pos` field of the newly inserted vertex.)
+It may be useful to ensure `Halfedge_Mesh::split_edge()` will now return an iterator to the newly inserted vertex, and particularly that the halfedge of this vertex will point along the edge of the original mesh. This iterator is useful because it can be used to (i) flag the vertex returned by the split operation as a new vertex, and (ii) flag each outgoing edge as either being new or part of the original mesh. (In other words, Step 4 is a great time to set the members `is_new` for vertices and edges created by the split. It is also a good time to copy the `new_pos` field from the edge being split into the `new_pos` field of the newly inserted vertex.)
 
-We recommend implementing this algorithm in stages, e.g., _first_ see if you can correctly update the connectivity, _then_ worry about getting the vertex positions right. Some examples below illustrate the correct behavior of the algorithm.
+We recommend implementing this algorithm in stages, e.g., _first_ see if you can correctly update the connectivity, _then_ worry about getting the vertex positions right. Some examples below illustrate the correct behavior of the algorithm (coming soon).
 
 This subdivision rule **is not** required to support meshes with boundary, unless the implementer wishes to go above and beyond.
