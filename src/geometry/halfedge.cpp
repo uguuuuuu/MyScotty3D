@@ -423,7 +423,11 @@ std::optional<std::pair<Halfedge_Mesh::ElementRef, std::string>> Halfedge_Mesh::
         do {
             accessible.insert(h);
             if(h->vertex() != v) {
-                return {{h, "A vertex's halfedge does not point to that vertex!"}};
+                std::stringstream ss;
+                ss << "A vertex's (" << v->id() << ") halfedge (" << h->id()
+                   << ") does not point to that vertex!"; 
+                //return {{h, "A vertex's halfedge does not point to that vertex!"}};
+                return {{h, ss.str()}};
             }
             h = h->twin()->next();
         } while(h != v->halfedge());
@@ -465,7 +469,11 @@ std::optional<std::pair<Halfedge_Mesh::ElementRef, std::string>> Halfedge_Mesh::
         do {
             accessible.insert(h);
             if(h->face() != f) {
-                return {{h, "A face's halfedge does not point to that face!"}};
+                std::stringstream ss;
+                ss << "A face's (" << f->id() << ") halfedge (" << h->id()
+                   << ") does not point to that face!"; 
+                //return {{h, "A face's halfedge does not point to that face!"}};
+                return {{h, ss.str()}};
             }
             h = h->next();
         } while(h != f->halfedge());
