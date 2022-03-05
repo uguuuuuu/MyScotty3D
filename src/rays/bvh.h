@@ -41,6 +41,10 @@ private:
     };
     size_t new_node(BBox box = {}, size_t start = 0, size_t size = 0, size_t l = 0, size_t r = 0);
 
+    void partition(size_t p, size_t n_buckets, size_t max_leaf_size);
+    Trace hit(size_t n, const Ray& ray) const;
+    void bvh_print(size_t p, size_t lv) const;
+
     std::vector<Node> nodes;
     std::vector<Primitive> primitives;
     size_t root_idx = 0;

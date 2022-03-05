@@ -372,14 +372,15 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_edge(Halfedge_Mesh::E
     return face;
 }
 
-// returns outgoing incident halfedge
-std::optional<Halfedge_Mesh::HalfedgeRef> collapse_half(Halfedge_Mesh::HalfedgeRef h,
+Halfedge_Mesh::VertexRef collapse_half(Halfedge_Mesh::HalfedgeRef h,
                                                         Halfedge_Mesh& m) {
 
     auto h0 = h->next();
-    auto h1 = h0->next();
-    while(h1->next() != h) h1 = h1->next();
+    auto h1 = get_last_halfedge(h);
+    auto v0 = m.new_vertex();
+
     if(num_edges(h->face()) == 3) {
+        m.erase(h);
         m.erase(h0);
         m.erase(h1);
         m.erase(h0->edge());
@@ -390,20 +391,25 @@ std::optional<Halfedge_Mesh::HalfedgeRef> collapse_half(Halfedge_Mesh::HalfedgeR
             h0 = h1->twin();
             h1 = hh->twin();
         }
-        auto ee = m.new_edge();
-        ee->halfedge() = h0;
-        h0->set_neighbors(h0->next(), h1, h0->vertex(), ee, h0->face());
-        if(h1->next() == h->twin())
-            h1->set_neighbors(h1->next()->next(), h0, h1->vertex(), ee, h1->face());
-        else
-            h1->set_neighbors(h1->next(), h0, h1->vertex(), ee, h1->face());
-        h1->vertex()->halfedge() = h1;
+
+        auto e0 = m.new_edge();
+        auto v1 = h1->vertex();
+        v0->halfedge() = h0;
+        v1->halfedge() = h1;
+        e0->halfedge() = h0;
+        h0->set_neighbors(h0->next(), h1, v0, e0, h0->face());
+        h1->set_neighbors(h1->next(), h0, v1, e0, h1->face());
     } else {
+        auto f0 = h->face();
+        v0->halfedge() = h0;
+        f0->halfedge() = h0;
+        h0->vertex() = v0;
         h1->next() = h0;
-        h->face()->halfedge() = h0;
+
+        m.erase(h);
     }
 
-    return h0;
+    return v0;
 }
 /*
     This method should collapse the given edge and return an iterator to
@@ -411,12 +417,14 @@ std::optional<Halfedge_Mesh::HalfedgeRef> collapse_half(Halfedge_Mesh::HalfedgeR
 */
 std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Mesh::EdgeRef e) {
 
-    auto v0 = e->halfedge()->vertex();
-    auto v1 = e->halfedge()->twin()->vertex();
+    auto h = e->halfedge()->face()->is_boundary() ? e->halfedge()->twin() : e->halfedge();
+    auto v0 = h->vertex();
+    auto v1 = h->twin()->vertex();
     bool on_bdry = on_boundary(e);
+    auto p = e->center();
+
     unsigned int num_triangles = 0;
     std::vector<Halfedge_Mesh::VertexRef> common_neighbors;
-    auto h = e->halfedge()->face()->is_boundary() ? e->halfedge()->twin() : e->halfedge();
     if(num_edges(h->face()) == 3) {
         num_triangles++;
         common_neighbors.push_back(h->next()->next()->vertex());
@@ -437,11 +445,17 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
     auto outgoing_halfedges0 = get_outgoing_halfedges(v0);
     auto outgoing_halfedges1 = get_outgoing_halfedges(v1);
 
-    auto h0 = collapse_half(h, *this);
-    if(!on_bdry) h0 = collapse_half(h->twin(), *this);
+    auto v = collapse_half(h, *this);
+    if(!on_bdry) {
+        auto h0 = v->halfedge();
+        erase(v);
+        v = collapse_half(h->twin(), *this);
+        h0->vertex() = v;
+    }
+    else {
+        get_last_halfedge(h->twin())->next() = h->twin()->next();
+    }
 
-    auto v = new_vertex();
-    v->halfedge() = *h0;
 
     for(auto hh : outgoing_halfedges0) {
         hh->vertex() = v;
@@ -449,6 +463,9 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
     for(auto hh : outgoing_halfedges1) {
         hh->vertex() = v;
     }
+
+    //v->pos = v->neighborhood_center();
+    v->pos = p;
 
     erase(v0);
     erase(v1);
@@ -570,6 +587,7 @@ std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::Ed
 std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::split_edge(Halfedge_Mesh::EdgeRef e) {
 
     auto v = new_vertex();
+    v->pos = e->center();
     auto e0 = e;
     auto e1 = new_edge();
     auto e2 = new_edge();
@@ -1310,7 +1328,7 @@ void Halfedge_Mesh::loop_subdivide() {
         next++;
 
         auto new_pos = e->new_pos;
-        auto v = *split_edge(e);
+        auto v = split_edge(e).value();
         auto incident_edges = get_incident_edges(v);
         assert(incident_edges.size() == 4);
         incident_edges[0]->is_new = false;
@@ -1329,6 +1347,7 @@ void Halfedge_Mesh::loop_subdivide() {
     }
     info("%i new edges", ctr);
     ctr = 0;
+
     // Now flip any new edge that connects an old and new vertex.
 
     info("Step 4");
@@ -1354,7 +1373,12 @@ void Halfedge_Mesh::loop_subdivide() {
     info("Finished");
 }
 
-/*
+// Returns deviation of offset plus degree of v from 6 
+inline unsigned int dev(Halfedge_Mesh::VertexRef v, int offset = 0) {
+    unsigned int deg = v->degree() + offset;
+    return deg >= 6u ? deg - 6u : 6u - deg;
+}
+    /*
     Isotropic remeshing. Note that this function returns success in a similar
     manner to the local operations, except with only a boolean value.
     (e.g. you may want to return false if this is not a triangle mesh)
@@ -1378,7 +1402,165 @@ bool Halfedge_Mesh::isotropic_remesh() {
     // but here simply calling collapse_edge() will not erase the elements.
     // You should use collapse_edge_erase() instead for the desired behavior.
 
-    return false;
+    for(auto f = faces.begin(); f != faces.end(); f++) {
+        if(f->is_boundary()) {
+            info("Contains boundary face!");
+            return false;
+        }
+        if(f->degree() != 3) {
+            info("Not triangle mesh!");
+            return false;
+        }
+    }
+
+    constexpr float EPSLON = 0.f;
+    float L = 0.f;
+    for(auto e = edges.begin(); e != edges.end(); e++) {
+        L += e->length();
+    }
+    L /= static_cast<float>(n_edges());
+
+    info("Step 1: splitting");
+    auto e = edges.begin();
+    for(size_t i = 0, num_edges = n_edges(); i < num_edges; i++) {
+        auto next = e;
+        next++;
+        if(e->length() - EPSLON > 4.f * L / 3.f) {
+            split_edge(e);
+        }
+        e = next;
+    }
+    info("Step 1 finised. Validating...");
+    auto err = validate();
+    if(err != std::nullopt) {
+        info("%s", err.value().second.c_str());
+        return false;
+    }
+    for(auto v = vertices.begin(); v != vertices.end(); v++) {
+        auto N = v->normal();
+        if(!(std::isfinite(N.x) && std::isfinite(N.y) && std::isfinite(N.z))) {
+            info("N = (%f, %f, %f) of vertex %i is infinite", N.x, N.y, N.z, v->id());
+            return false;
+        }
+    }
+    info("Validation finished");
+
+    info("Step 2: collapsing");
+    e = edges.begin();
+    for(size_t i = 0, num_edges = n_edges(); i < num_edges; i++) {
+        auto next = e;
+        next++;
+
+        if(e->length() + EPSLON < 4.f * L / 5.f) {
+            auto incident_faces = get_incident_faces(e);
+
+            while(std::find_if(incident_faces.begin(), incident_faces.end(), [&](FaceRef f) {
+                      return f == next->halfedge()->face() || f == next->halfedge()->twin()->face();
+                  }) != incident_faces.end()) {
+                next++;
+            }
+            i += 2;
+
+            auto v = collapse_edge_erase(e);
+            if(v == std::nullopt) {
+                info("Skipping edge %i", e->id());
+                next = e;
+                next++;
+                i -= 2;
+            }
+        }
+
+        e = next;
+    }
+    info("Step 2 finished. Validating...");
+    err = validate();
+    if(err != std::nullopt) {
+        info("%s", err.value().second.c_str());
+        return false;
+    }
+    for(auto v = vertices.begin(); v != vertices.end(); v++) {
+        auto N = v->normal();
+        if(!(std::isfinite(N.x) && std::isfinite(N.y) && std::isfinite(N.z))) {
+            info("N = (%f, %f, %f) of vertex %i is infinite", N.x, N.y, N.z, v->id());
+            info("Position: (%f, %f, %f)", v->pos.x, v->pos.y, v->pos.z);
+            info("Degree: %i", v->degree());
+            auto neighbors = get_neighbors(v);
+            info("%i neighbors:", neighbors.size());
+            for(auto n : neighbors) {
+                info("Position of vertex %i: (%f, %f, %f)", n->id(), n->pos.x, n->pos.y, n->pos.z);
+            }
+            return false;
+        }
+        //if(v->pos.x == 0.f && v->pos.y == 0.f && v->pos.z == 0.f) {
+        //    info("Vertex %i is 0", v->id());
+        //    return false;
+        //}
+    }
+    info("Validation finished");
+
+    info("Step 3: flipping");
+    for(e = edges.begin(); e != edges.end(); e++) {
+        auto h0 = e->halfedge();
+        auto h1 = h0->twin();
+        auto v0 = h0->vertex();
+        auto v1 = h1->vertex();
+        auto v2 = h0->next()->next()->vertex();
+        auto v3 = h1->next()->next()->vertex();
+        auto deviation = dev(v0) + dev(v1) + dev(v2) + dev(v3);
+        if(deviation > dev(v0, -1) + dev(v1, -1) + dev(v2, 1) + dev(v3, 1)) {
+            flip_edge(e);
+        }
+    }
+    info("Step 3 finished. Validating...");
+    err = validate();
+    if(err != std::nullopt) {
+        info("%s", err->second.c_str());
+        return false;
+    }
+    for(auto v = vertices.begin(); v != vertices.end(); v++) {
+        auto N = v->normal();
+        if(!(std::isfinite(N.x) && std::isfinite(N.y) && std::isfinite(N.z))) {
+            info("N = (%f, %f, %f) of vertex %i is infinite", N.x, N.y, N.z, v->id());
+            return false;
+        }
+    }
+    info("Validation finished");
+
+    info("Step 4: smoothing");
+    info("Number of vertices: %i", n_vertices());
+    for(int i = 0; i < 15; i++) {
+        for(auto v = vertices.begin(); v != vertices.end(); v++) {
+            //info("Processing vertex %i", v->id());
+            auto c = v->neighborhood_center();
+            auto p = v->pos;
+            auto d = c - p;
+            if(!(std::isfinite(d.x) && std::isfinite(d.y) && std::isfinite(d.z))) {
+                info("d = (%f, %f, %f) is infinite (before substracting)", d.x, d.y, d.z);
+            }
+            auto N = v->normal();
+            d = d - dot(d, N) * N;
+            if (!(std::isfinite(c.x) && std::isfinite(c.y) && std::isfinite(c.z))) {
+                info("c = (%f, %f, %f) is infinite", c.x, c.y, c.z);
+            }
+            if(!(std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z))) {
+                info("p = (%f, %f, %f) is infinite", p.x, p.y, p.z);
+            }
+            if(!(std::isfinite(N.x) && std::isfinite(N.y) && std::isfinite(N.z))) {
+                info("N = (%f, %f, %f) is infinite", N.x, N.y, N.z);
+            }
+            if(!(std::isfinite(d.x) && std::isfinite(d.y) && std::isfinite(d.z))) {
+                info("d = (%f, %f, %f) is infinite", d.x, d.y, d.z);
+                info("d dot N = %f", dot(d, N));
+            }
+            v->new_pos = p + d * (1.f / 5.f);
+        }
+        for(auto v = vertices.begin(); v != vertices.end(); v++) {
+            v->pos = v->new_pos;
+        }
+    }
+    info("Step 4 finished");
+
+    return true;
 }
 
 /* Helper type for quadric simplification */

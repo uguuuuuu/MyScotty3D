@@ -184,6 +184,7 @@ Vec3 Halfedge_Mesh::Vertex::normal() const {
             h = h->twin()->next();
         } while(h != halfedge());
     }
+    //info("norm: %f", n.norm());
     return n.unit();
 }
 

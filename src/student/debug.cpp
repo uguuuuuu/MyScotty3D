@@ -42,6 +42,8 @@ void student_debug_ui() {
     // Debug option example
     Checkbox("Pathtracer: use normal colors", &debug_data.normal_colors);
 
+    SliderFloat("Log Ray Length", &debug_data.ray_length, 0.001f, 100.f);
+
     // ImGui examples
     if(Button("Press Me")) {
         info("Debug button pressed!");

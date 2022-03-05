@@ -44,7 +44,8 @@
 
 struct Debug_Data {
     // Setting it here makes it default to false.
-    bool normal_colors = true;
+    bool normal_colors = false;
+    float ray_length = 1.f;
 };
 
 // This tells other code about a global variable of type Debug_Data, allowing

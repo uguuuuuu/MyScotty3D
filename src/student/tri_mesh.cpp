@@ -11,9 +11,22 @@ BBox Triangle::bbox() const {
 
     // Beware of flat/zero-volume boxes! You may need to
     // account for that here, or later on in BBox::intersect.
+    Vec3 p0 = vertex_list[v0].position;
+    Vec3 p1 = vertex_list[v1].position;
+    Vec3 p2 = vertex_list[v2].position;
 
-    BBox box;
+    BBox box(hmin(hmin(p0, p1), p2), hmax(hmax(p0, p1), p2));
+    if(box.max.x - box.min.x < EPS_F) box.min.x = box.max.x;
+    if(box.max.y - box.min.y < EPS_F) box.min.y = box.max.y;
+    if(box.max.z - box.min.z < EPS_F) box.min.z = box.max.z;
     return box;
+}
+
+static bool within_range(float x, float a, float b) {
+    return x >= a && x <= b;
+}
+static bool inside_triangle(Vec3 b) {
+    return within_range(b.x, 0.f, 1.f) && within_range(b.y, 0.f, 1.f) && within_range(b.z, 0.f, 1.f);
 }
 
 Trace Triangle::hit(const Ray& ray) const {
@@ -22,19 +35,42 @@ Trace Triangle::hit(const Ray& ray) const {
     Tri_Mesh_Vert v_0 = vertex_list[v0];
     Tri_Mesh_Vert v_1 = vertex_list[v1];
     Tri_Mesh_Vert v_2 = vertex_list[v2];
-    (void)v_0;
-    (void)v_1;
-    (void)v_2;
 
     // TODO (PathTracer): Task 2
     // Intersect the ray with the triangle defined by the three vertices.
 
     Trace ret;
+    ret.hit = false;
+    Vec3 e1, e2, s, h;
+    e1 = v_1.position - v_0.position;
+    e2 = v_2.position - v_0.position;
+    float denom = dot(cross(e1, ray.dir), e2);
+    if(std::abs(denom) < EPS_F) {
+        return ret;
+    }
+    s = ray.point - v_0.position;
+    h.x = -dot(cross(s, e2), ray.dir);
+    h.y = dot(cross(e1, ray.dir), s);
+    h.z = -dot(cross(s, e2), e1);
+    h /= denom;
+    Vec3 b(h.x, h.y, 1.f - h.x - h.y);
+
+    if(h.z < 0) {
+        return ret;
+    }
+    if(!inside_triangle(b)) {
+        return ret;
+    }
+    if(!within_range(h.z, ray.dist_bounds.x, ray.dist_bounds.y)) {
+        return ret;
+    }
+    ray.dist_bounds.y = h.z;
+    ret.hit = true;
     ret.origin = ray.point;
-    ret.hit = false;       // was there an intersection?
-    ret.distance = 0.0f;   // at what distance did the intersection occur?
-    ret.position = Vec3{}; // where was the intersection?
-    ret.normal = Vec3{};   // what was the surface normal at the intersection?
+    ret.distance = h.z;   // at what distance did the intersection occur?
+    ret.position = ray.point + ray.dir * h.z; // where was the intersection?
+    ret.normal = (v_0.normal * b.x + v_1.normal * b.y + v_2.normal * b.z)
+                     .unit(); // what was the surface normal at the intersection?
                            // (this should be interpolated between the three vertex normals)
     return ret;
 }

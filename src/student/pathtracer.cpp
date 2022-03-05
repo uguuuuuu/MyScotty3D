@@ -4,6 +4,8 @@
 #include "../util/rand.h"
 #include "debug.h"
 
+#include <limits>
+
 namespace PT {
 
 Spectrum Pathtracer::trace_pixel(size_t x, size_t y) {
@@ -16,11 +18,24 @@ Spectrum Pathtracer::trace_pixel(size_t x, size_t y) {
     // Tip: Samplers::Rect
     // Tip: log_ray is useful for debugging
 
+    //bool is_logging = RNG::coin_flip(0.0005f);
+    //if(!debug_data.is_logging) is_logging = false;
+
     Vec2 xy((float)x, (float)y);
     Vec2 wh((float)out_w, (float)out_h);
+    //if(is_logging) {
+    //    info("Dimensions of screen: (%d, %d)", out_w, out_h);
+    //    info("Pixel in screen space: (%d, %d)", x, y);
+    //}
+
+    Samplers::Rect sampler;
+    xy += sampler.sample();
+    //if(is_logging) info("Coordinates of sample: (%f, %f)", xy.x, xy.y);
 
     Ray ray = camera.generate_ray(xy / wh);
     ray.depth = max_depth;
+
+    //if(is_logging) log_ray(ray, 10.f);
 
     // Pathtracer::trace() returns the incoming light split into emissive and reflected components.
     auto [emissive, reflected] = trace(ray);
@@ -48,8 +63,23 @@ Spectrum Pathtracer::sample_indirect_lighting(const Shading_Info& hit) {
     // by Pathtracer::trace()), as the direct component will be computed in
     // Pathtracer::sample_direct_lighting().
 
-    Spectrum radiance;
-    return radiance;
+    auto sctr = hit.bsdf.scatter(hit.out_dir);
+    if(sctr.attenuation == Spectrum()) {
+        return {};
+    }
+    float pdf = 1.f;
+    if(!hit.bsdf.is_discrete()) {
+        pdf = hit.bsdf.pdf(hit.out_dir, sctr.direction);
+    }
+    if(pdf == 0.f) {
+        return {};
+    }
+    sctr.transform(hit.object_to_world);
+
+    Ray ray(hit.pos, sctr.direction, Vec2(EPS_F, std::numeric_limits<float>::max()), hit.depth - 1);
+
+    auto [emissive, reflected] = trace(ray);
+    return reflected * sctr.attenuation / pdf;
 }
 
 Spectrum Pathtracer::sample_direct_lighting(const Shading_Info& hit) {
@@ -90,7 +120,38 @@ Spectrum Pathtracer::sample_direct_lighting(const Shading_Info& hit) {
     // BSDF::pdf(), and Pathtracer::area_lights_pdf() to compute the proper weighting.
     // What is the PDF of our sample, given it could have been produced from either source?
 
-    return radiance;
+    float pdf = 1.f;
+    Spectrum attenuation(1.f);
+    Vec3 in_dir;
+    if(hit.bsdf.is_discrete()) {
+        Scatter sctr = hit.bsdf.scatter(hit.out_dir);
+        if(sctr.attenuation == Spectrum()) {
+            return {};
+        }
+        attenuation = sctr.attenuation;
+        sctr.transform(hit.object_to_world);
+        in_dir = sctr.direction;
+    } else {
+        if(RNG::unit() < 0.5f) {
+            Scatter sctr = hit.bsdf.scatter(hit.out_dir);
+            in_dir = hit.object_to_world.rotate(sctr.direction);
+        } else {
+            in_dir = sample_area_lights(hit.pos);
+        }
+        attenuation = hit.bsdf.evaluate(hit.out_dir, hit.world_to_object.rotate(in_dir));
+        if(attenuation == Spectrum()) {
+            return {};
+        }
+        pdf = 0.5f * hit.bsdf.pdf(hit.out_dir, hit.world_to_object.rotate(in_dir)) +
+              0.5f * area_lights_pdf(hit.pos, in_dir);
+    }
+
+    Ray ray(hit.pos, in_dir, Vec2(EPS_F, std::numeric_limits<float>::max()), 0);
+    if(RNG::coin_flip(0.0005f)) {
+        log_ray(ray, debug_data.ray_length);
+    }
+    auto [emissive, reflected] = trace(ray);
+    return emissive * attenuation / pdf + radiance;
 }
 
 std::pair<Spectrum, Spectrum> Pathtracer::trace(const Ray& ray) {
