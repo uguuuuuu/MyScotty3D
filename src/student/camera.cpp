@@ -10,9 +10,9 @@
 Ray Camera::generate_ray(Vec2 screen_coord) const {
 
     // TODO (PathTracer): Task 1
-    // compute position of the input sensor sample coordinate on the
+    // compute the position of the input sensor sample coordinate on the
     // canonical sensor plane one unit away from the pinhole.
-    // Tip: compute the ray direction in view space and use
+    // Tip: Compute the ray direction in view space and use
     // the camera transform to transform it back into world space.
 
     //bool is_logging = RNG::coin_flip(0.0005f);

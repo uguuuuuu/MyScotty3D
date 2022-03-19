@@ -685,7 +685,7 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::extrude_vertex(VertexRef 
 
     This is where bevel_vertex_positions, bevel_edge_positions, and
     bevel_face_positions come in: these functions are called repeatedly as you
-    move your mouse, the position of which determins the normal and tangent offset
+    move your mouse, the position of which determines the normal and tangent offset
     parameters. These functions are also passed an array of the original vertex
     positions: for bevel_vertex, it has one element, the original vertex position,
     for bevel_edge, two for the two vertices, and for bevel_face, it has the original
@@ -972,7 +972,7 @@ void Halfedge_Mesh::bevel_edge_positions(const std::vector<Vec3>& start_position
     Compute new vertex positions for the vertices of the beveled face.
 
     These vertices can be accessed via new_halfedges[i]->vertex()->pos for
-    i = 1, ..., new_halfedges.size()-1.
+    i = 0, ..., new_halfedges.size()-1.
 
     The basic strategy here is to loop over the list of outgoing halfedges,
     and use the preceding and next vertex position from the original mesh
